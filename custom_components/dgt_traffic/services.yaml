@@ -1,0 +1,35 @@
+refresh:
+  name: Refresh
+  description: Force refresh DGT traffic data
+
+get_incidents:
+  name: Get incidents
+  description: Get incidents within radius
+  fields:
+    radius_km:
+      name: Radius
+      description: Radius in kilometers
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 500
+          unit_of_measurement: km
+    incident_type:
+      name: Incident type
+      description: Filter by incident type
+      required: false
+      selector:
+        select:
+          options:
+            - "all"
+            - "weather"
+            - "roadworks"
+            - "accident"
+            - "obstruction"
+            - "congestion"
+
+test_connection:
+  name: Test connection
+  description: Test connection to DGT API
