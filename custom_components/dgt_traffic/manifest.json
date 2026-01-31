@@ -5,8 +5,9 @@
   "version": "1.0.0",
   "config_flow": true,
   "iot_class": "cloud_polling",
-  "documentation": "https://github.com/tuusuario/dgt_traffic",
+  "documentation": "https://github.com/Javisen/dgt_traffic",
   "requirements": ["geopy>=2.3.0", "xmltodict>=0.13.0"],
-  "issue_tracker": "https://github.com/tuusuario/dgt_traffic/issues",
+  "issue_tracker": "https://github.com/Javisen/dgt_traffic/issues",
   "quality_scale": "platinum"
+
 }
