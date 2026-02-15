@@ -65,7 +65,13 @@ Este módulo se considera funcional para uso en pruebas.
 
 Actualmente no existe versión oficial en HACS.
 
-Instalación manual:
+**instalacion mediante HACS repositorio personalizado:**
+
+1. agregar repositorio personalizado url https://github.com/Javisen/dgt_traffic
+2. reiniciar Home Assistant
+3. agregar integracion DGT Pro
+
+**Instalación manual:**
 
 1. Copiar la carpeta `dgt_traffic` `dentro de: config/custom_components/``
 
