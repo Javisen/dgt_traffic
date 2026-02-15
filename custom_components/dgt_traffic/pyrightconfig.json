@@ -1,0 +1,10 @@
+{
+    "typeCheckingMode": "basic",
+    "reportGeneralTypeIssues": false,
+    "reportOptionalMemberAccess": false,
+    "reportOptionalSubscript": false,
+    "exclude": [
+        "**/__pycache__/**",
+        "**/.vscode/**"
+    ]
+}

@@ -1,0 +1,76 @@
+{
+  "title": "DGT Tráfico",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Seleccionar módulo",
+        "description": "Elige qué funcionalidad de DGT quieres configurar",
+        "data": {
+          "selected_module": "Módulo a configurar"
+        }
+      },
+      "incidents": {
+        "title": "Incidencias de Tráfico",
+        "description": "Configura las incidencias de tráfico",
+        "data": {
+          "use_custom_location": "Usar ubicación personalizada",
+          "municipality": "Municipio",
+          "province": "Provincia",
+          "custom_latitude": "Latitud personalizada",
+          "custom_longitude": "Longitud personalizada",
+          "radius_km": "Radio de búsqueda (km)",
+          "update_interval": "Intervalo de actualización (minutos)",
+          "max_age_days": "Antigüedad máxima de datos (días)"
+        }
+      },
+      "charging": {
+        "title": "Electrolineras",
+        "description": "Configura las estaciones de carga eléctrica",
+        "data": {
+          "use_custom_location": "Usar ubicación personalizada",
+          "municipality": "Municipio",
+          "province": "Provincia",
+          "custom_latitude": "Latitud personalizada",
+          "custom_longitude": "Longitud personalizada",
+          "charging_radius_km": "Radio de búsqueda (km)",
+          "show_only_available": "Mostrar solo disponibles"
+        }
+      }
+    },
+    "error": {
+      "invalid_coordinates": "Coordenadas inválidas. Usa formato: 40.4168, -3.7038"
+    },
+    "abort": {
+      "already_configured": "Esta ubicación ya está configurada"
+    }
+  },
+  "options": {
+    "step": {
+      "incidents": {
+        "title": "Opciones de Incidencias",
+        "description": "Ajusta la configuración de incidencias",
+        "data": {
+          "radius_km": "Radio de búsqueda (km)",
+          "update_interval": "Intervalo de actualización (minutos)",
+          "max_age_days": "Antigüedad máxima de datos (días)"
+        }
+      },
+      "charging": {
+        "title": "Opciones de Electrolineras",
+        "description": "Ajusta la configuración de electrolineras",
+        "data": {
+          "charging_radius_km": "Radio de búsqueda (km)",
+          "show_only_available": "Mostrar solo disponibles"
+        }
+      }
+    }
+  },
+  "selector": {
+    "selected_module": {
+      "options": {
+        "incidents": "Incidencias de tráfico",
+        "charging": "Electrolineras"
+      }
+    }
+  }
+}

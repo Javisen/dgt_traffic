@@ -33,3 +33,7 @@ get_incidents:
 test_connection:
   name: Test connection
   description: Test connection to DGT API
+
+diagnose: 
+  name: Diagnose
+  description: Diagnose DGT Traffic integration

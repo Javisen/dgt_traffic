@@ -6,25 +6,43 @@ from homeassistant.const import Platform
 DOMAIN = "dgt_traffic"
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
-# Configuration
+CONF_USE_CUSTOM_LOCATION = "use_custom_location"
+CONF_CUSTOM_LATITUDE = "custom_latitude"
+CONF_CUSTOM_LONGITUDE = "custom_longitude"
+
+DEFAULT_USE_CUSTOM_LOCATION = False
+
 CONF_RADIUS_KM = "radius_km"
 CONF_UPDATE_INTERVAL = "update_interval"
 CONF_MAX_AGE_DAYS = "max_age_days"
 CONF_MUNICIPALITY = "municipality"
 CONF_PROVINCE = "province"
-CONF_ENABLE_NOTIFICATIONS = "enable_notifications"
-CONF_NOTIFICATION_SEVERITY = "notification_severity"
 
-# Defaults
+# Módulo de incidencias
+CONF_ENABLE_INCIDENTS = "enable_incidents"
+
+# Módulo de puntos de recarga
+CONF_ENABLE_CHARGING = "enable_charging"
+CONF_CHARGING_RADIUS_KM = "charging_radius_km"
+CONF_SHOW_ONLY_AVAILABLE = "show_only_available"
+CONF_LATITUDE = "latitude"
+CONF_LONGITUDE = "longitude"
+CONF_LOCATION_NAME = "location_name"
+
+
 DEFAULT_RADIUS_KM = 50
 DEFAULT_UPDATE_INTERVAL = 10  # minutes
 DEFAULT_MAX_AGE_DAYS = 7
 DEFAULT_SCAN_INTERVAL = timedelta(minutes=10)
 
-# DGT API URL
+DEFAULT_CHARGING_RADIUS_KM = 20
+DEFAULT_SHOW_ONLY_AVAILABLE = True
+
+# ------DGT INCIDENTS API---------
+
+
 DGT_REAL_URL = "https://nap.dgt.es/datex2/v3/dgt/SituationPublication/datex2_v36.xml"
 
-# Datex2 v3.6 XML Namespaces
 DGT_NAMESPACES = {
     "d2": "http://levelC/schema/3/d2Payload",
     "sit": "http://levelC/schema/3/situation",
@@ -36,7 +54,6 @@ DGT_NAMESPACES = {
     "xsi": "http://www.w3.org/2001/XMLSchema-instance",
 }
 
-# Mapping Datex2 types -> HA categories
 CATEGORY_MAPPING = {
     "WinterDrivingManagement": "weather",
     "PoorEnvironmentConditions": "weather",
@@ -57,7 +74,6 @@ CATEGORY_MAPPING = {
     "SituationPublication": "other",
 }
 
-# Cause type mapping
 CAUSE_TRANSLATION = {
     "roadMaintenance": "obras",
     "poorEnvironment": "condiciones meteorológicas",
@@ -81,7 +97,6 @@ CAUSE_TRANSLATION = {
     "spillageOnTheRoad": "derrame en carretera",
 }
 
-# Severity levels
 SEVERITY_LEVELS = {
     "low": "low",
     "medium": "medium",
@@ -90,14 +105,12 @@ SEVERITY_LEVELS = {
     "veryHigh": "highest",
 }
 
-# Validity status
 VALIDITY_STATUS = {
     "active": "active",
     "suspended": "suspended",
     "definedByValidityTimeSpec": "active",
 }
 
-# Description templates
 DESCRIPTION_TEMPLATES = {
     "WinterDrivingManagement": {
         "snowfall": "Nevada en {road}{km_info}{location_info}",
@@ -149,7 +162,8 @@ DESCRIPTION_TEMPLATES = {
     },
 }
 
-# Sensor entity IDs
+# --------ENTITY IDS----------
+
 SENSOR_ENTITY_IDS = {
     "total": "sensor.dgt_total_incidents",
     "weather": "sensor.dgt_weather_incidents",
@@ -164,11 +178,24 @@ SENSOR_ENTITY_IDS = {
     "list": "sensor.dgt_all_incidents",
 }
 
-# Binary sensor entity IDs
 BINARY_SENSOR_ENTITY_IDS = {
     "weather": "binary_sensor.dgt_has_weather_alerts",
     "roadworks": "binary_sensor.dgt_has_roadworks",
     "accident": "binary_sensor.dgt_has_accidents",
     "obstruction": "binary_sensor.dgt_has_obstructions",
     "any": "binary_sensor.dgt_has_incidents",
+}
+
+# -------DGT CHARGING API-------------
+
+DGT_CHARGING_URL = "https://infocar.dgt.es/datex2/v3/miterd/EnergyInfrastructureTablePublication/electrolineras.xml"
+
+DGT_CHARGING_NAMESPACES = {
+    "d2": "http://datex2.eu/schema/3/d2Payload",
+    "com": "http://datex2.eu/schema/3/common",
+    "loc": "http://datex2.eu/schema/3/locationReferencing",
+    "egi": "http://datex2.eu/schema/3/energyInfrastructure",
+    "fac": "http://datex2.eu/schema/3/facilities",
+    "locx": "http://datex2.eu/schema/3/locationExtension",
+    "xsi": "http://www.w3.org/2001/XMLSchema-instance",
 }

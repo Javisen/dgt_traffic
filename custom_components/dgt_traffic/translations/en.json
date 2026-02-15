@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DGT Traffic Configuration",
+        "description": "Set up the integration by entering the required information.",
+        "data": {
+          "municipality": "Municipality",
+          "province": "Province",
+          "radius_km": "Search radius (km)",
+          "update_interval": "Update interval (minutes)",
+          "max_age_days": "Maximum data age (days)",
+          "enable_incidents": "Enable incidents module",
+          "enable_charging": "Enable charging stations module",
+          "charging_radius_km": "Charging stations radius (km)",
+          "show_only_available": "Show only available charging stations"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DGT Traffic Options",
+        "description": "Modify the configuration parameters.",
+        "data": {
+          "municipality": "Municipality",
+          "province": "Province",
+          "radius_km": "Search radius (km)",
+          "update_interval": "Update interval (minutes)",
+          "max_age_days": "Maximum data age (days)",
+          "enable_incidents": "Enable incidents module",
+          "enable_charging": "Enable charging stations module",
+          "charging_radius_km": "Charging stations radius (km)",
+          "show_only_available": "Show only available charging stations"
+        }
+      }
+    }
+  }
+}
