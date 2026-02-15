@@ -8,7 +8,6 @@
   "documentation": "https://github.com/Javisen/dgt_traffic",
   "requirements": ["geopy>=2.3.0", "xmltodict>=0.13.0"],
   "issue_tracker": "https://github.com/Javisen/dgt_traffic/issues",
-  "quality_scale": "platinum",
   "icon": "https://raw.githubusercontent.com/Javisen/dgt_traffic/main/img/logo_dgt.svg",
   "platforms": ["sensor", "binary_sensor"]
 }
