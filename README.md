@@ -1,33 +1,142 @@
 # 🚦 DGT Traffic (Pro) para Home Assistant
 
 > [!WARNING]
-> **ESTADO DEL PROYECTO: VERSIÓN ALFA** > Este repositorio se encuentra actualmente en fase de desarrollo intensivo (WIP). El código no es estable, puede contener errores críticos y está sujeto a cambios estructurales profundos sin previo aviso. **No se recomienda su instalación en entornos de producción hasta el lanzamiento de la primera versión estable.**
-
-## 💡 Sobre el Proyecto
-**DGT Traffic** es una integración avanzada y propietaria diseñada para Home Assistant que permite la monitorización en tiempo real de incidencias de tráfico, obras, eventos y alertas meteorológicas proporcionadas por la **Dirección General de Tráfico (DGT)** de España.
-
-Este proyecto nace para llenar un vacío en la comunidad española de domótica, ofreciendo un control granular basado en geolocalización que hasta ahora no existía con este nivel de detalle.
-
-## ✨ Características en Desarrollo
-* 📍 **Geofencing Inteligente**: Filtrado por municipio, provincia y radio de acción (km).
-* ⚠️ **Gestión de Incidencias**: Sensores específicos para Accidentes, Retenciones, Obras y Meteorología.
-* 📏 **Cálculo de Proximidad**: Identificación de la distancia exacta a la incidencia más cercana mediante `geopy`.
-* 📋 **Atributos Técnicos**: Información detallada del punto kilométrico, sentido de la marcha y descripción de la restricción.
-
-## 🛠️ Instalación (Solo para desarrolladores/curiosos)
-Actualmente no existe una versión en HACS. La instalación manual bajo su propio riesgo se realiza copiando la carpeta `dgt_traffic` en `custom_components`. 
-
-**Nota:** Requiere las dependencias `geopy` y `xmltodict`.
-
-## ⚖️ Derechos Reservados y Licencia
-Este software es obra original de **Javisen**. 
-
-* **Copyright (c) 2026 Javisen**
-* Distribuido bajo la **Licencia MIT**.
-
-Aunque la licencia permite el uso del código, se hace constar que la **idea original, la estructura de filtrado geográfico y la implementación técnica** son propiedad intelectual del autor. Se agradece a los curiosos y desarrolladores que visiten el repo que respeten la autoría y esperen a las versiones oficiales para realizar forks o sugerencias.
+> **ESTADO DEL PROYECTO: VERSIÓN BETA**  
+> Este repositorio se encuentra actualmente en fase BETA. La integración es funcional, pero aún puede contener errores, comportamientos inesperados o cambios estructurales menores.  
+> No se recomienda su uso en entornos críticos o de producción hasta el lanzamiento de la primera versión estable.
 
 ---
-**¿Has encontrado un error?** Por favor, no abras incidencias (Issues) todavía. El código está siendo depurado diariamente.
 
-*Desarrollado con ❤️ en España para la comunidad de Home Assistant.*
+## 💡 Sobre el Proyecto
+
+**DGT Traffic** es una integración avanzada y modular para Home Assistant que permite la monitorización geolocalizada en tiempo real de:
+
+- 🚧 Incidencias de tráfico  
+- ⚡ Electrolineras / puntos de carga eléctrica  
+- 🌧️ Eventos meteorológicos (en desarrollo)
+
+Los datos provienen directamente de la **Dirección General de Tráfico (DGT)** mediante feeds oficiales DATEX2/XML.
+
+Este proyecto nace para cubrir un vacío en la comunidad española de Home Assistant, ofreciendo un control granular basado en radio geográfico real, algo que hasta ahora no existía con este nivel de precisión.
+
+---
+
+## 🧩 Arquitectura Modular
+
+La integración está dividida en módulos independientes que pueden configurarse múltiples veces:
+
+### 🚧 Incidencias de Tráfico (BETA temprana)
+
+- Accidentes
+- Retenciones
+- Obras
+- Eventos especiales
+
+⚠️ Este módulo aún está en desarrollo activo y puede presentar resultados incompletos o inconsistentes.
+
+---
+
+### ⚡ Electrolineras (BETA funcional)
+
+- Filtrado por radio configurable
+- Coordenadas automáticas o personalizadas
+- Sensores agregados (totales, cercanas, potencia, etc.)
+- Entidades dinámicas por estación
+- Clasificación por rangos de potencia
+- Visualización directa en mapa
+
+Este módulo se considera funcional para uso en pruebas.
+
+---
+
+## ✨ Características principales
+
+- 📍 Geolocalización automática o manual (lat/lon)
+- 📏 Cálculo real de distancia mediante `geopy`
+- 🧭 Filtrado por radio configurable
+- 🔌 Parsing completo DATEX2 de electrolineras
+- 🗺️ Soporte para visualización directa en mapa
+- 📊 Sensores agregados + entidades individuales por estación
+- 🧠 Coordinadores y arquitectura limpia orientada a escalabilidad
+
+---
+
+## 🛠️ Instalación
+
+Actualmente no existe versión oficial en HACS.
+
+Instalación manual:
+
+1. Copiar la carpeta `dgt_traffic` `dentro de: config/custom_components/``
+
+2. Reiniciar Home Assistant
+
+Dependencias requeridas:
+
+- `geopy`
+- `xmltodict`
+
+---
+
+## 🗺️ Ejemplo de tarjeta de mapa (Electrolineras)
+
+```yaml
+type: panel
+title: Electrolineras-Map
+path: electrolineras-map
+sections: []
+cards:
+  - type: custom:auto-entities
+    card:
+      type: custom:map-card
+      preferCanvas: false
+      height: 600px
+    filter:
+      include:
+        - options: {}
+          domain: sensor
+          attributes:
+            power_range: "*"
+
+```
+
+---
+
+## 🧪 Estado actual
+
+- **Electrolineras**: funcional (BETA)  
+- **Incidencias**: en desarrollo activo  
+- **Frontend**: se proporciona como ejemplo  
+
+---
+
+## 🐞 Reporte de errores
+
+A partir de esta versión BETA ya se aceptan Issues.
+
+Por favor incluye:
+
+- Versión de Home Assistant  
+- Logs relevantes  
+- Qué módulo falla (incidencias / electrolineras)  
+- Ubicación aproximada o coordenadas (si aplica)  
+
+Esto ayuda enormemente a mejorar la integración.
+
+---
+
+## ⚖️ Derechos Reservados y Licencia
+
+Este software es obra original de **Javisen**.
+
+Copyright (c) 2026 Javisen  
+Distribuido bajo la Licencia MIT.
+
+Aunque la licencia permite el uso del código, se hace constar que la idea original, la estructura de filtrado geográfico y la implementación técnica son propiedad intelectual del autor.
+
+Se agradece respetar la autoría y esperar a versiones oficiales antes de realizar forks públicos.
+
+---
+
+Desarrollado con ❤️ en España para la comunidad de Home Assistant.
+
