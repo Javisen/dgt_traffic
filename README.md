@@ -69,7 +69,7 @@ Actualmente no existe versión oficial en HACS.
 
 1. agregar repositorio personalizado url https://github.com/Javisen/dgt_traffic
 2. reiniciar Home Assistant
-3. agregar integracion DGT Pro
+3. agregar integracion DGT Traffic
 
 **Instalación manual:**
 
