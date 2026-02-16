@@ -2,7 +2,7 @@
   "domain": "dgt_traffic",
   "name": "DGT Traffic",
   "codeowners": ["@Javisen"],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "config_flow": true,
   "iot_class": "cloud_polling",
   "documentation": "https://github.com/Javisen/dgt_traffic",
@@ -11,4 +11,5 @@
   "quality_scale": "platinum",
   "icon": "https://raw.githubusercontent.com/Javisen/dgt_traffic/main/img/logo_dgt.svg",
   "platforms": ["sensor", "binary_sensor"]
+
 }
