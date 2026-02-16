@@ -114,6 +114,26 @@ cards:
 
 ```
 
+## 🗺️ Ejemplo de tarjeta de mapa (Incidencias)
+
+```yaml
+type: panel
+title: Incidencias-DGT
+path: incidencias-map
+sections: []
+cards:
+  - type: custom:auto-entities
+    card:
+      type: custom:map-card
+      height: 600px
+    filter:
+      include:
+        - domain: sensor
+          attributes:
+            severity: "*"
+
+```
+
 ---
 
 ## 🧪 Estado actual
