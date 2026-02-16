@@ -6,11 +6,24 @@ from homeassistant.const import Platform
 DOMAIN = "dgt_traffic"
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
-CONF_USE_CUSTOM_LOCATION = "use_custom_location"
+# --------------------
+# Location system
+# --------------------
+
+CONF_LOCATION_MODE = "location_mode"
+CONF_PERSON_ENTITY = "person_entity"
+
+LOCATION_MODE_HA = "ha"
+LOCATION_MODE_CUSTOM = "custom"
+LOCATION_MODE_PERSON = "person"
+
 CONF_CUSTOM_LATITUDE = "custom_latitude"
 CONF_CUSTOM_LONGITUDE = "custom_longitude"
+CONF_LOCATION_NAME = "location_name"
 
-DEFAULT_USE_CUSTOM_LOCATION = False
+# --------------------
+# Generic config
+# --------------------
 
 CONF_RADIUS_KM = "radius_km"
 CONF_UPDATE_INTERVAL = "update_interval"
@@ -18,17 +31,19 @@ CONF_MAX_AGE_DAYS = "max_age_days"
 CONF_MUNICIPALITY = "municipality"
 CONF_PROVINCE = "province"
 
-# Módulo de incidencias
+# --------------------
+# Modules
+# --------------------
+
 CONF_ENABLE_INCIDENTS = "enable_incidents"
 
-# Módulo de puntos de recarga
 CONF_ENABLE_CHARGING = "enable_charging"
 CONF_CHARGING_RADIUS_KM = "charging_radius_km"
 CONF_SHOW_ONLY_AVAILABLE = "show_only_available"
-CONF_LATITUDE = "latitude"
-CONF_LONGITUDE = "longitude"
-CONF_LOCATION_NAME = "location_name"
 
+# --------------------
+# Defaults
+# --------------------
 
 DEFAULT_RADIUS_KM = 50
 DEFAULT_UPDATE_INTERVAL = 10  # minutes

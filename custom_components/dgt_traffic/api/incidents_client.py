@@ -50,12 +50,10 @@ class DGTClient:
 
                 xml_content = await response.text()
 
-                # Parse XML
                 incidents = await self._xml_parser.parse_xml(
                     xml_content, max_age_days=max_age_days
                 )
 
-                # Cache results
                 self._cached_incidents = incidents
                 self._last_update = datetime.now()
 
@@ -76,20 +74,23 @@ class DGTXMLParser:
     def __init__(self):
         """Initialize parser."""
         self._timezone = ZoneInfo("Europe/Madrid")
+        self._severity_map = {
+            "highest": "high",
+            "high": "high",
+            "medium": "medium",
+            "low": "low",
+        }
 
     async def parse_xml(self, xml_content: str, max_age_days: int = 7) -> List[Dict]:
         """Parse XML content and extract incidents."""
         incidents = []
 
         try:
-            # Parse with ElementTree
             root = ET.fromstring(xml_content)
 
-            # Register namespaces
             for prefix, uri in DGT_NAMESPACES.items():
                 ET.register_namespace(prefix, uri)
 
-            # Find all situations
             situations = root.findall(".//sit:situation", DGT_NAMESPACES)
 
             for situation in situations:
@@ -99,7 +100,6 @@ class DGTXMLParser:
 
         except ET.ParseError as err:
             _LOGGER.error("Error parsing XML: %s", err)
-            # Fallback to regex parsing
             incidents = await self._parse_with_regex(xml_content, max_age_days)
         except Exception as err:
             _LOGGER.error("Error in XML parsing: %s", err)
@@ -109,36 +109,35 @@ class DGTXMLParser:
     def _parse_situation(self, situation_elem) -> Optional[Dict]:
         """Parse a single situation element."""
         try:
-            # Get situation ID
             sit_id = situation_elem.get("id", "unknown")
 
-            # Get overall severity
             overall_severity_elem = situation_elem.find(
                 "sit:overallSeverity", DGT_NAMESPACES
             )
-            overall_severity = (
-                overall_severity_elem.text
-                if overall_severity_elem is not None
-                else "unknown"
+
+            if overall_severity_elem is not None and overall_severity_elem.text:
+                overall_severity_raw = overall_severity_elem.text
+            else:
+                overall_severity_raw = "low"
+
+            overall_severity = self._severity_map.get(
+                overall_severity_raw, overall_severity_raw
             )
 
-            # Find situation record
             record_elem = situation_elem.find("sit:situationRecord", DGT_NAMESPACES)
             if record_elem is None:
                 return None
 
-            # Parse record
             record_data = self._parse_situation_record(record_elem)
             if not record_data:
                 return None
 
-            # Generate description
             description = self._generate_description(record_data)
 
-            # Determine category
             category = CATEGORY_MAPPING.get(record_data["record_type"], "other")
 
-            # Create incident object
+            severity = record_data.get("severity", overall_severity)
+
             incident = {
                 "id": f"{sit_id}_{record_data['record_id']}",
                 "situation_id": sit_id,
@@ -149,7 +148,7 @@ class DGTXMLParser:
                 "record_type": record_data["record_type"],
                 "cause_type": record_data.get("cause_type", ""),
                 "detailed_cause": record_data.get("detailed_cause", ""),
-                "severity": record_data.get("severity", overall_severity),
+                "severity": severity,
                 "overall_severity": overall_severity,
                 "probability": record_data.get("probability", "certain"),
                 "validity_status": record_data.get("validity_status", "active"),
@@ -185,18 +184,15 @@ class DGTXMLParser:
         try:
             record_data = {}
 
-            # Record ID and type
             record_data["record_id"] = record_elem.get("id", "unknown")
             record_data["version"] = record_elem.get("version", "1")
 
-            # Record type
             record_type = record_elem.get(f'{{{DGT_NAMESPACES["xsi"]}}}type', "")
             if ":" in record_type:
                 record_data["record_type"] = record_type.split(":")[-1]
             else:
                 record_data["record_type"] = record_type
 
-            # Times
             creation_elem = record_elem.find(
                 "sit:situationRecordCreationTime", DGT_NAMESPACES
             )
@@ -209,24 +205,23 @@ class DGTXMLParser:
             if version_elem is not None and version_elem.text:
                 record_data["version_time"] = self._parse_datetime(version_elem.text)
 
-            # Severity
             severity_elem = record_elem.find("sit:severity", DGT_NAMESPACES)
             if severity_elem is not None and severity_elem.text:
-                record_data["severity"] = severity_elem.text
+                severity_raw = severity_elem.text
+                record_data["severity"] = self._severity_map.get(
+                    severity_raw, severity_raw
+                )
 
-            # Probability
             prob_elem = record_elem.find("sit:probabilityOfOccurrence", DGT_NAMESPACES)
             if prob_elem is not None and prob_elem.text:
                 record_data["probability"] = prob_elem.text
 
-            # Source
             source_elem = record_elem.find(
                 ".//com:sourceIdentification", DGT_NAMESPACES
             )
             if source_elem is not None and source_elem.text:
                 record_data["source"] = source_elem.text
 
-            # Validity
             validity_elem = record_elem.find("sit:validity", DGT_NAMESPACES)
             if validity_elem is not None:
                 status_elem = validity_elem.find("com:validityStatus", DGT_NAMESPACES)
@@ -235,7 +230,6 @@ class DGTXMLParser:
                         status_elem.text, status_elem.text
                     )
 
-                # Start time
                 start_elem = validity_elem.find(
                     ".//com:overallStartTime", DGT_NAMESPACES
                 )
@@ -244,14 +238,12 @@ class DGTXMLParser:
                         start_elem.text
                     )
 
-            # Cause
             cause_elem = record_elem.find("sit:cause", DGT_NAMESPACES)
             if cause_elem is not None:
                 cause_type_elem = cause_elem.find("sit:causeType", DGT_NAMESPACES)
                 if cause_type_elem is not None and cause_type_elem.text:
                     record_data["cause_type"] = cause_type_elem.text
 
-                # Detailed cause
                 detailed_elem = cause_elem.find(
                     ".//sit:roadMaintenanceType", DGT_NAMESPACES
                 )
@@ -271,16 +263,13 @@ class DGTXMLParser:
                 if detailed_elem is not None and detailed_elem.text:
                     record_data["detailed_cause"] = detailed_elem.text
 
-            # Location
             location = self._extract_location(record_elem)
             record_data["location"] = location
 
-            # Lanes affected
             lanes_elem = record_elem.find(".//loc:laneUsage", DGT_NAMESPACES)
             if lanes_elem is not None and lanes_elem.text:
                 record_data["lanes_affected"] = lanes_elem.text
 
-            # Vehicle type
             vehicle_elem = record_elem.find(".//com:vehicleType", DGT_NAMESPACES)
             if vehicle_elem is not None and vehicle_elem.text:
                 record_data["vehicle_type"] = vehicle_elem.text
@@ -295,12 +284,10 @@ class DGTXMLParser:
         location = {}
 
         try:
-            # Road name
             road_elem = record_elem.find(".//loc:roadName", DGT_NAMESPACES)
             if road_elem is not None and road_elem.text:
                 location["road"] = road_elem.text
 
-            # Kilometer points
             from_km = record_elem.find(
                 ".//loc:from//lse:kilometerPoint", DGT_NAMESPACES
             )
@@ -311,7 +298,6 @@ class DGTXMLParser:
             if to_km is not None and to_km.text:
                 location["km_to"] = to_km.text
 
-            # Coordinates
             from_lat = record_elem.find(".//loc:from//loc:latitude", DGT_NAMESPACES)
             from_lon = record_elem.find(".//loc:from//loc:longitude", DGT_NAMESPACES)
 
@@ -327,7 +313,6 @@ class DGTXMLParser:
                 except (ValueError, TypeError):
                     pass
 
-            # To coordinates
             to_lat = record_elem.find(".//loc:to//loc:latitude", DGT_NAMESPACES)
             to_lon = record_elem.find(".//loc:to//loc:longitude", DGT_NAMESPACES)
 
@@ -343,7 +328,6 @@ class DGTXMLParser:
                 except (ValueError, TypeError):
                     pass
 
-            # Administrative information
             prov_elem = record_elem.find(".//lse:province", DGT_NAMESPACES)
             if prov_elem is not None and prov_elem.text:
                 location["province"] = prov_elem.text
@@ -356,7 +340,6 @@ class DGTXMLParser:
             if comm_elem is not None and comm_elem.text:
                 location["autonomous_community"] = comm_elem.text
 
-            # Direction
             direction_elem = record_elem.find(
                 ".//lse:tpegDirectionRoad", DGT_NAMESPACES
             )
@@ -379,7 +362,6 @@ class DGTXMLParser:
             detailed_cause = record_data.get("detailed_cause", "default")
             location = record_data.get("location", {})
 
-            # Get template
             templates = DESCRIPTION_TEMPLATES.get(
                 record_type, DESCRIPTION_TEMPLATES["default"]
             )
@@ -388,10 +370,8 @@ class DGTXMLParser:
                 templates.get("default", "{road}{km_info}{location_info}"),
             )
 
-            # Prepare template variables
             road = location.get("road", "carretera")
 
-            # Kilometer info
             km_from = location.get("km_from")
             km_to = location.get("km_to")
             km_info = ""
@@ -400,7 +380,6 @@ class DGTXMLParser:
             elif km_from:
                 km_info = f" a la altura del km {km_from}"
 
-            # Location info
             municipality = location.get("municipality")
             province = location.get("province")
             location_info = ""
@@ -409,7 +388,6 @@ class DGTXMLParser:
             elif province:
                 location_info = f" ({province})"
 
-            # Fill template
             description = template.format(
                 road=road,
                 km_info=km_info,
@@ -418,7 +396,6 @@ class DGTXMLParser:
                 severity=record_data.get("severity", ""),
             )
 
-            # Capitalize first letter
             if description and description[0].islower():
                 description = description[0].upper() + description[1:]
 
@@ -430,7 +407,6 @@ class DGTXMLParser:
     def _parse_datetime(self, dt_str: str) -> Optional[str]:
         """Parse datetime string to ISO format."""
         try:
-            # Try different formats
             formats = [
                 "%Y-%m-%dT%H:%M:%S.%f%z",
                 "%Y-%m-%dT%H:%M:%S%z",
@@ -440,7 +416,6 @@ class DGTXMLParser:
             for fmt in formats:
                 try:
                     dt = datetime.strptime(dt_str, fmt)
-                    # Convert to local timezone
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=self._timezone)
                     return dt.isoformat()
@@ -457,16 +432,14 @@ class DGTXMLParser:
         try:
             creation_time = incident.get("creation_time")
             if not creation_time:
-                return True  # Keep if no time info
+                return True
 
-            # Try to parse ISO datetime
             if isinstance(creation_time, str):
                 try:
                     dt = datetime.fromisoformat(creation_time.replace("Z", "+00:00"))
                 except ValueError:
-                    return True  # Keep if can't parse
+                    return True
 
-            # Calculate age
             if isinstance(creation_time, datetime):
                 age = datetime.now(self._timezone) - creation_time
                 return age.days <= max_age_days
@@ -483,7 +456,6 @@ class DGTXMLParser:
         incidents = []
 
         try:
-            # Extract situations with regex
             sit_pattern = r'<sit:situation[^>]*id="([^"]+)"[^>]*>.*?</sit:situation>'
             situations = re.findall(sit_pattern, xml_content, re.DOTALL)
 

@@ -1,7 +1,7 @@
-# modules/charging.py
 """
 Módulo de electrolineras DGT (charging stations).
 """
+
 import logging
 from datetime import timedelta
 from typing import Dict, List, Any
@@ -18,9 +18,13 @@ from ..const import (
     DOMAIN,
     CONF_CHARGING_RADIUS_KM,
     CONF_SHOW_ONLY_AVAILABLE,
-    CONF_USE_CUSTOM_LOCATION,
     CONF_CUSTOM_LATITUDE,
     CONF_CUSTOM_LONGITUDE,
+    CONF_LOCATION_MODE,
+    CONF_PERSON_ENTITY,
+    LOCATION_MODE_HA,
+    LOCATION_MODE_CUSTOM,
+    LOCATION_MODE_PERSON,
     DEFAULT_CHARGING_RADIUS_KM,
     DEFAULT_SHOW_ONLY_AVAILABLE,
 )
@@ -36,44 +40,10 @@ class DGTChargingModule(DGTModule):
         super().__init__(hass, config)
         self.name = "charging"
         self.client = None
+        self._location_listener = None
 
-        if (
-            not hasattr(self, "user_lat")
-            or not hasattr(self, "user_lon")
-            or self.user_lat is None
-            or self.user_lon is None
-        ):
-            if config.get(CONF_USE_CUSTOM_LOCATION, False):
-                self.user_lat = config.get(CONF_CUSTOM_LATITUDE)
-                self.user_lon = config.get(CONF_CUSTOM_LONGITUDE)
-
-            if self.user_lat is None or self.user_lon is None:
-                self.user_lat = config.get("latitude")
-                self.user_lon = config.get("longitude")
-
-            # FALLBACK A CONFIGURACIÓN DE HA
-            if self.user_lat is None or self.user_lon is None:
-                if (
-                    hass.config.latitude is not None
-                    and hass.config.longitude is not None
-                ):
-                    self.user_lat = hass.config.latitude
-                    self.user_lon = hass.config.longitude
-                else:
-                    self.user_lat = 40.4168  # Madrid
-                    self.user_lon = -3.7038
-                    _LOGGER.warning("Fallback a coordenadas de Madrid")
-
-        try:
-            float(self.user_lat)
-            float(self.user_lon)
-        except (ValueError, TypeError):
-            _LOGGER.error(
-                "Coordenadas no son números válidos: lat=%s, lon=%s",
-                self.user_lat,
-                self.user_lon,
-            )
-            raise ValueError(f"Coordenadas inválidas: {self.user_lat}, {self.user_lon}")
+        # Inicializar coordenadas según modo
+        self._update_coordinates_from_config()
 
         # === CONFIGURACIÓN ESPECÍFICA DE CHARGING ===
         self.radius_km = config.get(CONF_CHARGING_RADIUS_KM, DEFAULT_CHARGING_RADIUS_KM)
@@ -84,10 +54,78 @@ class DGTChargingModule(DGTModule):
         # Intervalo de actualización (más largo que incidencias)
         self.update_interval_minutes = 30
 
+    def _update_coordinates_from_config(self):
+        """Actualizar coordenadas según el modo configurado."""
+        mode = self.config.get(CONF_LOCATION_MODE, LOCATION_MODE_HA)
+
+        if mode == LOCATION_MODE_PERSON:
+            # Para persona, obtenemos del estado actual
+            person = self.config.get(CONF_PERSON_ENTITY)
+            if person:
+                state = self.hass.states.get(person)
+                if state and state.attributes.get("latitude"):
+                    self.user_lat = state.attributes["latitude"]
+                    self.user_lon = state.attributes["longitude"]
+                    _LOGGER.debug(
+                        "Coordenadas desde persona %s: %s, %s",
+                        person,
+                        self.user_lat,
+                        self.user_lon,
+                    )
+                else:
+                    self.user_lat = None
+                    self.user_lon = None
+            else:
+                self.user_lat = None
+                self.user_lon = None
+
+        elif mode == LOCATION_MODE_CUSTOM:
+            # Coordenadas fijas del config
+            self.user_lat = self.config.get(CONF_CUSTOM_LATITUDE)
+            self.user_lon = self.config.get(CONF_CUSTOM_LONGITUDE)
+
+        else:  # LOCATION_MODE_HA
+            # Fallback a HA
+            self.user_lat = self.hass.config.latitude
+            self.user_lon = self.hass.config.longitude
+
+        # Validar coordenadas
+        self._validate_coordinates()
+
+    def _validate_coordinates(self):
+        """Validar que las coordenadas son números válidos."""
+        try:
+            if self.user_lat is not None and self.user_lon is not None:
+                float(self.user_lat)
+                float(self.user_lon)
+            else:
+                # Fallback a HA si no hay coordenadas
+                self.user_lat = self.hass.config.latitude
+                self.user_lon = self.hass.config.longitude
+        except (ValueError, TypeError):
+            _LOGGER.error("Coordenadas no válidas, usando fallback HA")
+            self.user_lat = self.hass.config.latitude
+            self.user_lon = self.hass.config.longitude
+
+        # Último fallback a Madrid
+        if self.user_lat is None or self.user_lon is None:
+            self.user_lat = 40.4168
+            self.user_lon = -3.7038
+            _LOGGER.warning("Fallback a coordenadas de Madrid")
+
+    async def _handle_person_change(self, event):
+        """Manejar cambios en la entidad persona."""
+        if self.config.get(CONF_LOCATION_MODE) == LOCATION_MODE_PERSON:
+            _LOGGER.debug("Persona actualizada, refrescando coordenadas")
+            self._update_coordinates_from_config()
+            # Forzar actualización del coordinador
+            await self.coordinator.async_request_refresh()
+
     async def async_setup(self) -> bool:
         """Configurar módulo."""
         try:
             from homeassistant.helpers.aiohttp_client import async_get_clientsession
+            from homeassistant.helpers.event import async_track_state_change_event
 
             session = async_get_clientsession(self.hass)
             self.client = DGTChargingClient(session)
@@ -104,6 +142,15 @@ class DGTChargingModule(DGTModule):
 
             await self.coordinator.async_config_entry_first_refresh()
 
+            # Si estamos en modo PERSON, escuchar cambios
+            if self.config.get(CONF_LOCATION_MODE) == LOCATION_MODE_PERSON:
+                person = self.config.get(CONF_PERSON_ENTITY)
+                if person:
+                    self._location_listener = async_track_state_change_event(
+                        self.hass, [person], self._handle_person_change
+                    )
+                    _LOGGER.info("Escuchando cambios en persona: %s", person)
+
             self.enabled = True
             _LOGGER.info("Módulo de electrolineras DGT configurado")
             return True
@@ -114,6 +161,9 @@ class DGTChargingModule(DGTModule):
 
     async def _async_update_data(self) -> Dict[str, Any]:
         """Actualizar datos de electrolineras."""
+        # Actualizar coordenadas por si cambió la persona
+        self._update_coordinates_from_config()
+
         coordinates_valid = (
             self.user_lat is not None
             and self.user_lon is not None
@@ -128,6 +178,7 @@ class DGTChargingModule(DGTModule):
             filter_active = False
         else:
             filter_active = True
+            _LOGGER.debug("Usando coordenadas: %s, %s", self.user_lat, self.user_lon)
 
         try:
             if filter_active:
@@ -175,7 +226,6 @@ class DGTChargingModule(DGTModule):
                     station["distance_km"] = distance
                     station["is_nearby"] = distance <= self.radius_km
 
-                    # Filtrar por radio
                     if distance <= self.radius_km:
                         nearby_stations.append(station)
                     else:
@@ -279,17 +329,14 @@ class DGTChargingModule(DGTModule):
         """Obtener potencia máxima de los puntos de carga."""
         max_power = 0
 
-        # 1. charging_points
         for point in station.get("charging_points", []):
             power = point.get("power_kw", 0)
             if power > max_power:
                 max_power = power
 
-        # 2. max_power_kw directo de la estación
         if max_power == 0:
             max_power = station.get("max_power_kw", 0)
 
-        # 3. estimar basado en conector_type
         if max_power == 0:
             connector_type = station.get("connector_type", "").lower()
             if "ccs" in connector_type or "combo" in connector_type:
@@ -342,19 +389,15 @@ class DGTChargingModule(DGTModule):
             "most_powerful": None,
         }
 
-        # Contar por operador
         for operator, stations in stations_by_operator.items():
             stats["by_operator"][operator] = len(stations)
 
-        # Contar por potencia
         for power_range, stations in stations_by_power.items():
             stats["by_power"][power_range] = len(stations)
 
-        # Contar por disponibilidad
         for availability, stations in stations_by_availability.items():
             stats["by_availability"][availability] = len(stations)
 
-        # Encontrar más cercana
         if nearby_stations:
             closest = min(nearby_stations, key=lambda x: x.get("distance_km", 999))
             stats["closest"] = {
@@ -365,7 +408,6 @@ class DGTChargingModule(DGTModule):
                 "total_points": closest.get("total_points", 0),
             }
 
-        # Encontrar más potente
         if nearby_stations:
             most_powerful = max(nearby_stations, key=lambda x: self._get_max_power(x))
             stats["most_powerful"] = {

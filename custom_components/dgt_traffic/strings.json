@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuración de DGT Tráfico",
+        "description": "Configura la integración introduciendo la información necesaria.",
+        "data": {
+          "selected_module": "Módulo a configurar"
+        }
+      }
+    },
+    "selector": {
+      "selected_module": {
+        "options": {
+          "incidents": "Incidencias de tráfico",
+          "charging": "Electrolineras"
+        }
+      }
+    }
+  }
+}

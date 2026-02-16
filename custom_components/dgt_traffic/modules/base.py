@@ -7,9 +7,13 @@ from typing import Dict, Any
 from homeassistant.core import HomeAssistant
 
 from ..const import (
-    CONF_USE_CUSTOM_LOCATION,
+    CONF_LOCATION_MODE,
+    CONF_PERSON_ENTITY,
     CONF_CUSTOM_LATITUDE,
     CONF_CUSTOM_LONGITUDE,
+    LOCATION_MODE_HA,
+    LOCATION_MODE_CUSTOM,
+    LOCATION_MODE_PERSON,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,81 +28,58 @@ class DGTModule:
         self.config = config
         self.coordinator = None
         self.enabled = False
+        self.user_lat = None
+        self.user_lon = None
+        self._location_mode = config.get(CONF_LOCATION_MODE, LOCATION_MODE_HA)
 
-        # === CALCULAR COORDENADAS DEL USUARIO  ===
-        _LOGGER.debug("=== BASE MODULE: Calculando coordenadas ===")
-        _LOGGER.debug("Config keys: %s", list(config.keys()))
-        _LOGGER.debug(
-            "CONF_USE_CUSTOM_LOCATION: %s", config.get(CONF_USE_CUSTOM_LOCATION, False)
-        )
-        _LOGGER.debug("CONF_CUSTOM_LATITUDE: %s", config.get(CONF_CUSTOM_LATITUDE))
-        _LOGGER.debug("CONF_CUSTOM_LONGITUDE: %s", config.get(CONF_CUSTOM_LONGITUDE))
-        _LOGGER.debug("HA config latitude: %s", hass.config.latitude)
-        _LOGGER.debug("HA config longitude: %s", hass.config.longitude)
+        # Las coordenadas se inicializarán en el módulo hijo
+        # para poder tener listeners de persona
 
-        # Determinar qué coordenadas usar
-        use_custom = config.get(CONF_USE_CUSTOM_LOCATION, False)
+    def _update_coordinates_from_config(self):
+        """Actualizar coordenadas según el modo configurado."""
+        mode = self.config.get(CONF_LOCATION_MODE, LOCATION_MODE_HA)
 
-        if use_custom:
-            # Usar ubicación personalizada
-            custom_lat = config.get(CONF_CUSTOM_LATITUDE)
-            custom_lon = config.get(CONF_CUSTOM_LONGITUDE)
-
-            if custom_lat is not None and custom_lon is not None:
-                self.user_lat = float(custom_lat)
-                self.user_lon = float(custom_lon)
-                self.use_custom_location = True
-                _LOGGER.info(
-                    "📍 BASE: Usando ubicación PERSONALIZADA: %s, %s",
-                    self.user_lat,
-                    self.user_lon,
-                )
+        if mode == LOCATION_MODE_PERSON:
+            person = self.config.get(CONF_PERSON_ENTITY)
+            if person:
+                state = self.hass.states.get(person)
+                if state and state.attributes.get("latitude"):
+                    self.user_lat = state.attributes["latitude"]
+                    self.user_lon = state.attributes["longitude"]
+                else:
+                    self.user_lat = None
+                    self.user_lon = None
             else:
-                # Coordenadas personalizadas no configuradas
-                self.user_lat = hass.config.latitude
-                self.user_lon = hass.config.longitude
-                self.use_custom_location = False
-                _LOGGER.warning(
-                    "⚠️ BASE: Configuración personalizada activada pero sin coordenadas. Usando HA: %s, %s",
-                    self.user_lat,
-                    self.user_lon,
-                )
-        else:
-            # Usar ubicación de Home Assistant
-            self.user_lat = hass.config.latitude
-            self.user_lon = hass.config.longitude
-            self.use_custom_location = False
-            _LOGGER.info(
-                "📍 BASE: Usando ubicación de HOME ASSISTANT: %s, %s",
-                self.user_lat,
-                self.user_lon,
-            )
+                self.user_lat = None
+                self.user_lon = None
 
-        # Validación final
+        elif mode == LOCATION_MODE_CUSTOM:
+            self.user_lat = self.config.get(CONF_CUSTOM_LATITUDE)
+            self.user_lon = self.config.get(CONF_CUSTOM_LONGITUDE)
+
+        else:  # LOCATION_MODE_HA
+            self.user_lat = self.hass.config.latitude
+            self.user_lon = self.hass.config.longitude
+
+        self._validate_coordinates()
+
+    def _validate_coordinates(self):
+        """Validar coordenadas."""
+        try:
+            if self.user_lat is not None and self.user_lon is not None:
+                float(self.user_lat)
+                float(self.user_lon)
+            else:
+                self.user_lat = self.hass.config.latitude
+                self.user_lon = self.hass.config.longitude
+        except (ValueError, TypeError):
+            self.user_lat = self.hass.config.latitude
+            self.user_lon = self.hass.config.longitude
+
         if self.user_lat is None or self.user_lon is None:
-            _LOGGER.error(
-                "❌ BASE: Coordenadas del usuario son None después del cálculo"
-            )
-            _LOGGER.error(
-                "   HA location: %s, %s", hass.config.latitude, hass.config.longitude
-            )
-            _LOGGER.error("   Config: %s", config)
-
-            # Fallback a coordenadas por defecto (España central)
-            self.user_lat = 40.4168  # Madrid
+            self.user_lat = 40.4168
             self.user_lon = -3.7038
-            _LOGGER.warning(
-                "⚠️ BASE: Usando coordenadas por defecto: %s, %s",
-                self.user_lat,
-                self.user_lon,
-            )
-
-        _LOGGER.info(
-            "📍 BASE: Coordenadas finales: %s, %s", self.user_lat, self.user_lon
-        )
-        _LOGGER.info(
-            "📍 BASE: Usando ubicación personalizada: %s", self.use_custom_location
-        )
+            _LOGGER.warning("Usando coordenadas por defecto (Madrid)")
 
     async def async_setup(self) -> bool:
         """Setup module."""
@@ -114,7 +95,6 @@ class DGTModule:
             return self.coordinator.async_add_listener(callback)
         return lambda: None
 
-    # Propiedades comunes
     @property
     def data(self) -> Dict[str, Any]:
         """Acceso a datos del coordinador."""

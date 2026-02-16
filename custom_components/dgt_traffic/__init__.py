@@ -69,14 +69,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 modules_config["charging"] = False
 
         if platforms_to_load:
-
             platforms_to_load = list(set(platforms_to_load))
             await hass.config_entries.async_forward_entry_setups(
                 entry, platforms_to_load
             )
             _LOGGER.info("Plataformas cargadas: %s", platforms_to_load)
         else:
-            _LOGGER.warning("No se cargarón plataformas (ningún módulo habilitado)")
+            _LOGGER.warning("No se cargaron plataformas (ningún módulo habilitado)")
 
         hass.data[DOMAIN][entry.entry_id]["modules_config"] = modules_config
 
@@ -117,9 +116,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading DGT Traffic")
 
-    hass.services.async_remove(DOMAIN, "refresh")
-    hass.services.async_remove(DOMAIN, "get_incidents")
-    hass.services.async_remove(DOMAIN, "test_connection")
+    # Eliminar servicios
+    for service in [
+        "refresh",
+        "refresh_charging",
+        "get_incidents",
+        "test_connection",
+        "diagnose",
+    ]:
+        if hass.services.has_service(DOMAIN, service):
+            hass.services.async_remove(DOMAIN, service)
 
     entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
     modules = entry_data.get("modules", {})
@@ -157,7 +163,17 @@ async def _async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> None
         else:
             _LOGGER.warning("No se pudo refrescar electrolineras: módulo no encontrado")
 
-    hass.services.async_register(DOMAIN, "refresh_charging", handle_refresh_charging)
+    async def handle_refresh_incidents(call):
+        """Handle refresh incidents service."""
+        _LOGGER.info("Servicio refresh incidents llamado")
+        entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
+
+        incidents_module = entry_data.get("modules", {}).get("incidents")
+        if incidents_module and incidents_module.coordinator:
+            await incidents_module.coordinator.async_refresh()
+            _LOGGER.info("Datos incidencias actualizados manualmente")
+        else:
+            _LOGGER.warning("No se pudo refrescar incidencias: módulo no encontrado")
 
     async def handle_diagnose(call):
         """Diagnose DGT Traffic integration."""
@@ -174,45 +190,56 @@ async def _async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> None
             )
             _LOGGER.info("Modules config: %s", entry_data.get("modules_config", {}))
 
-            modules = entry_data.get("modules", {})
-            charging_module = modules.get("charging")
+            config_entry = hass.config_entries.async_get_entry(entry_id)
+            if config_entry:
+                mode = config_entry.data.get("location_mode", "ha")
+                _LOGGER.info("Location mode: %s", mode)
+                if mode == "person":
+                    person = config_entry.data.get("person_entity")
+                    _LOGGER.info("Following person: %s", person)
+                    if person:
+                        state = hass.states.get(person)
+                        if state:
+                            _LOGGER.info("Person state: %s", state.state)
+                            _LOGGER.info("Person attributes: %s", state.attributes)
 
-            if charging_module:
-                _LOGGER.info("CHARGING MODULE FOUND")
-                _LOGGER.info("   Enabled: %s", charging_module.enabled)
-                if (
-                    hasattr(charging_module, "coordinator")
-                    and charging_module.coordinator
-                ):
-                    data = charging_module.coordinator.data or {}
+            modules = entry_data.get("modules", {})
+            for module_name, module in modules.items():
+                _LOGGER.info("MODULE: %s", module_name.upper())
+                _LOGGER.info("   Enabled: %s", module.enabled)
+                _LOGGER.info("   Coordinates: %s, %s", module.user_lat, module.user_lon)
+
+                if hasattr(module, "coordinator") and module.coordinator:
                     _LOGGER.info(
                         "   Last update success: %s",
-                        charging_module.coordinator.last_update_success,
+                        module.coordinator.last_update_success,
                     )
-                    _LOGGER.info(
-                        "   Nearby stations: %s", len(data.get("nearby_stations", []))
-                    )
-                    _LOGGER.info(
-                        "   All stations: %s", len(data.get("all_stations", []))
-                    )
-                    _LOGGER.info("   Statistics: %s", data.get("statistics", {}))
-            else:
-                _LOGGER.info("CHARGING MODULE NOT FOUND")
-
-                modules_config = entry_data.get("modules_config", {})
-                _LOGGER.info(
-                    "   Charging in modules_config: %s",
-                    modules_config.get("charging", False),
-                )
-
-                config_entry = hass.config_entries.async_get_entry(entry_id)
-                if config_entry:
-                    _LOGGER.info(
-                        "   CONF_ENABLE_CHARGING in config: %s",
-                        config_entry.data.get(CONF_ENABLE_CHARGING, False),
-                    )
+                    if module.coordinator.data:
+                        if module_name == "charging":
+                            nearby = len(
+                                module.coordinator.data.get("nearby_stations", [])
+                            )
+                            _LOGGER.info("   Nearby stations: %s", nearby)
+                        else:
+                            nearby = len(
+                                module.coordinator.data.get("nearby_incidents", [])
+                            )
+                            _LOGGER.info("   Nearby incidents: %s", nearby)
 
         _LOGGER.info("=== END DIAGNOSIS ===")
 
-    hass.services.async_register(DOMAIN, "diagnose", handle_diagnose)
-    _LOGGER.info("Servicios DGT Traffic (con charging) registrados")
+    # Registrar servicios
+    if not hass.services.has_service(DOMAIN, "refresh_charging"):
+        hass.services.async_register(
+            DOMAIN, "refresh_charging", handle_refresh_charging
+        )
+
+    if not hass.services.has_service(DOMAIN, "refresh_incidents"):
+        hass.services.async_register(
+            DOMAIN, "refresh_incidents", handle_refresh_incidents
+        )
+
+    if not hass.services.has_service(DOMAIN, "diagnose"):
+        hass.services.async_register(DOMAIN, "diagnose", handle_diagnose)
+
+    _LOGGER.info("Servicios DGT Traffic registrados")

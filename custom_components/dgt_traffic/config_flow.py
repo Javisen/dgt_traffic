@@ -4,10 +4,12 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 import logging
 
 from .options_flow import DGTOptionsFlow
 from .helpers.geocoder import DGTGeocoder
+
 from .const import (
     DOMAIN,
     CONF_MUNICIPALITY,
@@ -19,10 +21,14 @@ from .const import (
     CONF_ENABLE_CHARGING,
     CONF_CHARGING_RADIUS_KM,
     CONF_SHOW_ONLY_AVAILABLE,
-    CONF_USE_CUSTOM_LOCATION,
     CONF_CUSTOM_LATITUDE,
     CONF_CUSTOM_LONGITUDE,
     CONF_LOCATION_NAME,
+    CONF_LOCATION_MODE,
+    CONF_PERSON_ENTITY,
+    LOCATION_MODE_HA,
+    LOCATION_MODE_CUSTOM,
+    LOCATION_MODE_PERSON,
     DEFAULT_RADIUS_KM,
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_MAX_AGE_DAYS,
@@ -33,111 +39,105 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class DGTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow profesional para DGT Traffic."""
+def _build_location_name(data):
+    name = ""
+    if data.get(CONF_MUNICIPALITY):
+        name = data[CONF_MUNICIPALITY]
+    if data.get(CONF_PROVINCE):
+        if name:
+            name = f"{name}, {data[CONF_PROVINCE]}"
+        else:
+            name = data[CONF_PROVINCE]
+    return name
 
+
+class DGTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        """Primer menú: elegir módulo."""
         if user_input is not None:
-            self.selected_module = user_input["selected_module"]
-
-            if self.selected_module == "incidents":
+            if user_input["selected_module"] == "incidents":
                 return await self.async_step_incidents()
-
-            if self.selected_module == "charging":
-                return await self.async_step_charging()
-
-        schema = vol.Schema(
-            {
-                vol.Required("selected_module", default="incidents"): vol.In(
-                    {
-                        "incidents": "DGT Incidencias",
-                        "charging": "DGT Electrolineras",
-                    }
-                )
-            }
-        )
+            return await self.async_step_charging()
 
         return self.async_show_form(
             step_id="user",
-            data_schema=schema,
-            description_placeholders={"intro": "Bienvenido a DGT Traffic"},
+            data_schema=vol.Schema(
+                {
+                    vol.Required("selected_module", default="incidents"): vol.In(
+                        {
+                            "incidents": "DGT Incidencias",
+                            "charging": "DGT Electrolineras",
+                        }
+                    )
+                }
+            ),
         )
 
-    # ---------MÓDULO DE INCIDENCIAS---------------
+    # ================= INCIDENCIAS =================
 
     async def async_step_incidents(self, user_input=None):
-        """Configuración del módulo de incidencias."""
         errors = {}
 
         if user_input is not None:
-            use_custom = user_input.get(CONF_USE_CUSTOM_LOCATION, False)
+            mode = user_input.get(CONF_LOCATION_MODE)
+            desired_name = _build_location_name(user_input)
 
-            if use_custom:
-                try:
-                    lat_raw = str(user_input.get(CONF_CUSTOM_LATITUDE, "0")).replace(
-                        ",", "."
-                    )
+            # PERSONA (NO TOCAR NOMBRE)
+            if mode == LOCATION_MODE_PERSON:
+                person = user_input.get(CONF_PERSON_ENTITY)
+                state = self.hass.states.get(person)
 
-                    user_input[CONF_CUSTOM_LATITUDE] = round(float(lat_raw), 6)
-
-                    lon_raw = str(user_input.get(CONF_CUSTOM_LONGITUDE, "0")).replace(
-                        ",", "."
-                    )
-                    user_input[CONF_CUSTOM_LONGITUDE] = round(float(lon_raw), 6)
-
-                    user_input[CONF_LOCATION_NAME] = user_input.get(
-                        CONF_MUNICIPALITY, "Ubicación personalizada"
-                    )
-                except (ValueError, TypeError) as err:
-                    _LOGGER.error(
-                        "Error al procesar coordenadas en incidencias: %s", err
-                    )
-                    errors["base"] = "invalid_coordinates"
-            else:
-                location_str = ""
-                if user_input.get(CONF_MUNICIPALITY):
-                    location_str = user_input[CONF_MUNICIPALITY]
-                if user_input.get(CONF_PROVINCE):
-                    location_str = f"{location_str}, {user_input[CONF_PROVINCE]}"
-
-                if not location_str.strip():
-                    location_str = "España"
-
-                try:
-                    coordinates = await DGTGeocoder.async_get_coordinates(
-                        self.hass,
-                        municipality=user_input.get(CONF_MUNICIPALITY, ""),
-                        province=user_input.get(CONF_PROVINCE, ""),
-                    )
-
-                    if coordinates:
-                        user_input[CONF_CUSTOM_LATITUDE] = round(
-                            float(coordinates[0]), 6
-                        )
-                        user_input[CONF_CUSTOM_LONGITUDE] = round(
-                            float(coordinates[1]), 6
-                        )
-                        user_input[CONF_LOCATION_NAME] = location_str
-                    else:
-                        user_input[CONF_CUSTOM_LATITUDE] = round(
-                            float(self.hass.config.latitude), 6
-                        )
-                        user_input[CONF_CUSTOM_LONGITUDE] = round(
-                            float(self.hass.config.longitude), 6
-                        )
-                        user_input[CONF_LOCATION_NAME] = user_input.get(
-                            CONF_MUNICIPALITY, "Ubicación HA"
-                        )
-                except Exception:
+                if not state:
+                    errors["base"] = "person_not_found"
+                elif state.attributes.get("latitude") is None:
+                    errors["base"] = "person_no_gps"
+                else:
                     user_input[CONF_CUSTOM_LATITUDE] = round(
-                        float(self.hass.config.latitude), 6
+                        float(state.attributes["latitude"]), 6
                     )
                     user_input[CONF_CUSTOM_LONGITUDE] = round(
-                        float(self.hass.config.longitude), 6
+                        float(state.attributes["longitude"]), 6
                     )
+                    user_input[CONF_LOCATION_NAME] = state.name
+
+            # CUSTOM / HA / GEOCODER → SIEMPRE MUNICIPIO
+            else:
+                try:
+                    if mode == LOCATION_MODE_CUSTOM:
+                        user_input[CONF_CUSTOM_LATITUDE] = round(
+                            float(user_input.get(CONF_CUSTOM_LATITUDE)), 6
+                        )
+                        user_input[CONF_CUSTOM_LONGITUDE] = round(
+                            float(user_input.get(CONF_CUSTOM_LONGITUDE)), 6
+                        )
+
+                    else:
+                        coords = await DGTGeocoder.async_get_coordinates(
+                            self.hass,
+                            municipality=user_input.get(CONF_MUNICIPALITY, ""),
+                            province=user_input.get(CONF_PROVINCE, ""),
+                        )
+
+                        if coords:
+                            user_input[CONF_CUSTOM_LATITUDE] = round(coords[0], 6)
+                            user_input[CONF_CUSTOM_LONGITUDE] = round(coords[1], 6)
+                        else:
+                            raise Exception("Geocoder failed")
+
+                    user_input[CONF_LOCATION_NAME] = desired_name or "Ubicación HA"
+
+                except Exception:
+                    try:
+                        user_input[CONF_CUSTOM_LATITUDE] = round(
+                            self.hass.config.latitude, 6
+                        )
+                        user_input[CONF_CUSTOM_LONGITUDE] = round(
+                            self.hass.config.longitude, 6
+                        )
+                        user_input[CONF_LOCATION_NAME] = desired_name or "Ubicación HA"
+                    except Exception:
+                        errors["base"] = "invalid_coordinates"
 
             if not errors:
                 user_input[CONF_ENABLE_INCIDENTS] = True
@@ -148,107 +148,96 @@ class DGTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_USE_CUSTOM_LOCATION, default=False): bool,
-                vol.Optional(CONF_MUNICIPALITY, default=""): str,
-                vol.Optional(CONF_PROVINCE, default=""): str,
-                vol.Optional(CONF_CUSTOM_LATITUDE): vol.Coerce(float),
-                vol.Optional(CONF_CUSTOM_LONGITUDE): vol.Coerce(float),
-                vol.Optional(CONF_RADIUS_KM, default=DEFAULT_RADIUS_KM): vol.All(
-                    vol.Coerce(int), vol.Range(min=1, max=500)
-                ),
-                vol.Optional(
-                    CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
-                vol.Optional(CONF_MAX_AGE_DAYS, default=DEFAULT_MAX_AGE_DAYS): vol.All(
-                    vol.Coerce(int), vol.Range(min=1, max=30)
-                ),
-            }
-        )
-
         return self.async_show_form(
             step_id="incidents",
-            data_schema=schema,
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LOCATION_MODE, default=LOCATION_MODE_HA): vol.In(
+                        {
+                            LOCATION_MODE_HA: "Ubicación Home Assistant",
+                            LOCATION_MODE_CUSTOM: "Coordenadas personalizadas",
+                            LOCATION_MODE_PERSON: "Seguir persona",
+                        }
+                    ),
+                    vol.Optional(CONF_PERSON_ENTITY): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="person")
+                    ),
+                    vol.Optional(CONF_MUNICIPALITY, default=""): str,
+                    vol.Optional(CONF_PROVINCE, default=""): str,
+                    vol.Optional(CONF_CUSTOM_LATITUDE): vol.Coerce(float),
+                    vol.Optional(CONF_CUSTOM_LONGITUDE): vol.Coerce(float),
+                    vol.Optional(CONF_RADIUS_KM, default=DEFAULT_RADIUS_KM): vol.Coerce(
+                        int
+                    ),
+                    vol.Optional(
+                        CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL
+                    ): vol.Coerce(int),
+                    vol.Optional(
+                        CONF_MAX_AGE_DAYS, default=DEFAULT_MAX_AGE_DAYS
+                    ): vol.Coerce(int),
+                }
+            ),
             errors=errors,
-            description_placeholders={
-                "note": "Nota: Las coordenadas se redondearán automáticamente a 6 decimales."
-            },
         )
 
-    # --------MÓDULO DE ELECTROLINERAS-----------------
+    # ================= CHARGING =================
 
     async def async_step_charging(self, user_input=None):
-        """Configuración del módulo de electrolineras."""
         errors = {}
 
         if user_input is not None:
-            # Determinar si usa ubicación personalizada o geopy
-            use_custom = user_input.get(CONF_USE_CUSTOM_LOCATION, False)
+            mode = user_input.get(CONF_LOCATION_MODE)
+            desired_name = _build_location_name(user_input)
 
-            if use_custom:
-                # USAR COORDENADAS PERSONALIZADAS CON LIMPIEZA
-                try:
-                    lat_raw = str(user_input.get(CONF_CUSTOM_LATITUDE, "0")).replace(
-                        ",", "."
-                    )
-                    user_input[CONF_CUSTOM_LATITUDE] = round(float(lat_raw), 6)
+            if mode == LOCATION_MODE_PERSON:
+                person = user_input.get(CONF_PERSON_ENTITY)
+                state = self.hass.states.get(person)
 
-                    lon_raw = str(user_input.get(CONF_CUSTOM_LONGITUDE, "0")).replace(
-                        ",", "."
-                    )
-                    user_input[CONF_CUSTOM_LONGITUDE] = round(float(lon_raw), 6)
-
-                    user_input[CONF_LOCATION_NAME] = user_input.get(
-                        CONF_MUNICIPALITY, "Ubicación personalizada"
-                    )
-                except (ValueError, TypeError) as err:
-                    _LOGGER.error("Error al procesar coordenadas en charging: %s", err)
-                    errors["base"] = "invalid_coordinates"
-            else:
-                # USAR GEOCODER con municipio/provincia
-                location_str = ""
-                if user_input.get(CONF_MUNICIPALITY):
-                    location_str = user_input[CONF_MUNICIPALITY]
-                if user_input.get(CONF_PROVINCE):
-                    location_str = f"{location_str}, {user_input[CONF_PROVINCE]}"
-
-                if not location_str.strip():
-                    location_str = "España"
-
-                try:
-                    coordinates = await DGTGeocoder.async_get_coordinates(
-                        self.hass,
-                        municipality=user_input.get(CONF_MUNICIPALITY, ""),
-                        province=user_input.get(CONF_PROVINCE, ""),
-                    )
-
-                    if coordinates:
-                        user_input[CONF_CUSTOM_LATITUDE] = round(
-                            float(coordinates[0]), 6
-                        )
-                        user_input[CONF_CUSTOM_LONGITUDE] = round(
-                            float(coordinates[1]), 6
-                        )
-                        user_input[CONF_LOCATION_NAME] = location_str
-                    else:
-                        # Fallback a coordenadas de HA redondeadas
-                        user_input[CONF_CUSTOM_LATITUDE] = round(
-                            float(self.hass.config.latitude), 6
-                        )
-                        user_input[CONF_CUSTOM_LONGITUDE] = round(
-                            float(self.hass.config.longitude), 6
-                        )
-                        user_input[CONF_LOCATION_NAME] = user_input.get(
-                            CONF_MUNICIPALITY, "Ubicación HA"
-                        )
-                except Exception:
+                if not state:
+                    errors["base"] = "person_not_found"
+                elif state.attributes.get("latitude") is None:
+                    errors["base"] = "person_no_gps"
+                else:
                     user_input[CONF_CUSTOM_LATITUDE] = round(
-                        float(self.hass.config.latitude), 6
+                        float(state.attributes["latitude"]), 6
                     )
                     user_input[CONF_CUSTOM_LONGITUDE] = round(
-                        float(self.hass.config.longitude), 6
+                        float(state.attributes["longitude"]), 6
                     )
+                    user_input[CONF_LOCATION_NAME] = state.name
+
+            else:
+                try:
+                    if mode == LOCATION_MODE_CUSTOM:
+                        user_input[CONF_CUSTOM_LATITUDE] = round(
+                            float(user_input.get(CONF_CUSTOM_LATITUDE)), 6
+                        )
+                        user_input[CONF_CUSTOM_LONGITUDE] = round(
+                            float(user_input.get(CONF_CUSTOM_LONGITUDE)), 6
+                        )
+                    else:
+                        coords = await DGTGeocoder.async_get_coordinates(
+                            self.hass,
+                            municipality=user_input.get(CONF_MUNICIPALITY, ""),
+                            province=user_input.get(CONF_PROVINCE, ""),
+                        )
+
+                        if coords:
+                            user_input[CONF_CUSTOM_LATITUDE] = round(coords[0], 6)
+                            user_input[CONF_CUSTOM_LONGITUDE] = round(coords[1], 6)
+                        else:
+                            raise Exception()
+
+                    user_input[CONF_LOCATION_NAME] = desired_name or "Ubicación HA"
+
+                except Exception:
+                    user_input[CONF_CUSTOM_LATITUDE] = round(
+                        self.hass.config.latitude, 6
+                    )
+                    user_input[CONF_CUSTOM_LONGITUDE] = round(
+                        self.hass.config.longitude, 6
+                    )
+                    user_input[CONF_LOCATION_NAME] = desired_name or "Ubicación HA"
 
             if not errors:
                 user_input[CONF_ENABLE_INCIDENTS] = False
@@ -259,32 +248,34 @@ class DGTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_USE_CUSTOM_LOCATION, default=False): bool,
-                vol.Optional(CONF_MUNICIPALITY, default=""): str,
-                vol.Optional(CONF_PROVINCE, default=""): str,
-                vol.Optional(CONF_CUSTOM_LATITUDE): vol.Coerce(float),
-                vol.Optional(CONF_CUSTOM_LONGITUDE): vol.Coerce(float),
-                vol.Optional(
-                    CONF_CHARGING_RADIUS_KM, default=DEFAULT_CHARGING_RADIUS_KM
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=500)),
-                vol.Optional(
-                    CONF_SHOW_ONLY_AVAILABLE, default=DEFAULT_SHOW_ONLY_AVAILABLE
-                ): bool,
-            }
-        )
-
         return self.async_show_form(
             step_id="charging",
-            data_schema=schema,
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LOCATION_MODE, default=LOCATION_MODE_HA): vol.In(
+                        {
+                            LOCATION_MODE_HA: "Ubicación Home Assistant",
+                            LOCATION_MODE_CUSTOM: "Coordenadas personalizadas",
+                            LOCATION_MODE_PERSON: "Seguir persona",
+                        }
+                    ),
+                    vol.Optional(CONF_PERSON_ENTITY): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="person")
+                    ),
+                    vol.Optional(CONF_MUNICIPALITY, default=""): str,
+                    vol.Optional(CONF_PROVINCE, default=""): str,
+                    vol.Optional(CONF_CUSTOM_LATITUDE): vol.Coerce(float),
+                    vol.Optional(CONF_CUSTOM_LONGITUDE): vol.Coerce(float),
+                    vol.Optional(
+                        CONF_CHARGING_RADIUS_KM, default=DEFAULT_CHARGING_RADIUS_KM
+                    ): vol.Coerce(int),
+                    vol.Optional(
+                        CONF_SHOW_ONLY_AVAILABLE, default=DEFAULT_SHOW_ONLY_AVAILABLE
+                    ): bool,
+                }
+            ),
             errors=errors,
-            description_placeholders={
-                "note": "Nota: Las coordenadas se redondearán automáticamente a 6 decimales para optimizar el filtrado."
-            },
         )
-
-    # -------OPTIONS FLOW--------
 
     @staticmethod
     @callback

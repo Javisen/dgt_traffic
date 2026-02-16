@@ -26,6 +26,32 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER.debug("Módulo no listo en hass.data (esperando init)")
         return
 
+    from homeassistant.helpers.device_registry import async_get
+
+    device_registry = async_get(hass)
+
+    # Hub incidencias (ya lo tienes implícito)
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{entry.entry_id}_incidents")},
+        name="DGT Incidencias",
+        manufacturer="DGT",
+        model="Tráfico en Tiempo Real",
+    )
+
+    # Contenedor lógico de incidencias
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{entry.entry_id}_incidents_items")},
+        name="Incidencias",
+        manufacturer="DGT",
+        model="Eventos dentro del radio",
+        via_device=(DOMAIN, f"{entry.entry_id}_incidents_items"),
+    )
+
+    manager = DGTIncidentManager(hass, entry, incidents_module, async_add_entities)
+    await manager.async_init()
+
     try:
         sensors = [
             DGTTotalIncidentsSensor(incidents_module, entry),
@@ -91,14 +117,26 @@ class DGTBaseSensor(SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Configuración del Hub de Incidencias."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.entry.entry_id}_incidents")},
-            name="DGT Incidencias",
-            manufacturer="DGT",
-            model="Módulo de Tráfico en Tiempo Real",
-            configuration_url="https://infocar.dgt.es",
-        )
+        """Determina si el sensor va al padre o al hijo según el tipo."""
+
+        # Si es un sensor individual de incidencia
+        if hasattr(self, "incident"):  # o isinstance(self, DGTIncidentSensor)
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"{self.entry.entry_id}_incidents_items")},
+                name="Incidencias",
+                manufacturer="DGT",
+                model="Eventos dentro del radio",
+                via_device=(DOMAIN, f"{self.entry.entry_id}_incidents"),
+            )
+        else:
+            # Para sensores de resumen (futuros)
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"{self.entry.entry_id}_incidents")},
+                name="DGT Incidencias",
+                manufacturer="DGT",
+                model="Módulo de Tráfico en Tiempo Real",
+                configuration_url="https://infocar.dgt.es",
+            )
 
     @property
     def should_poll(self) -> bool:
@@ -423,3 +461,95 @@ class DGTIncidentsBySeveritySensor(DGTBaseSensor):
             attributes["Incidencias Detalladas"] = "\n\n---\n\n".join(detalles_list)
 
         return attributes
+
+
+class DGTIncidentSensor(DGTBaseSensor):
+
+    def __init__(self, module, entry, incident):
+        super().__init__(module, entry)
+        self.incident = incident
+        self.entry = entry
+
+        iid = incident.get("id")
+
+        self._attr_unique_id = f"{entry.entry_id}_incident_{iid}"
+
+        desc = incident.get("description", "Incidencia")
+        dist = round(incident.get("distance_km", 0), 1)
+
+        self._attr_name = f"DGT {desc[:45]}"
+
+        self._attr_latitude = incident.get("latitude")
+        self._attr_longitude = incident.get("longitude")
+
+        self._attr_icon = self._get_icon()
+
+    def _get_icon(self):
+        t = self.incident.get("type")
+
+        return {
+            "accident": "mdi:car-crash",
+            "roadworks": "mdi:road-variant",
+            "congestion": "mdi:traffic-light",
+            "weather": "mdi:weather-lightning",
+            "restriction": "mdi:traffic-cone",
+            "obstruction": "mdi:alert-octagon",
+            "information": "mdi:information",
+        }.get(t, "mdi:alert")
+
+    @property
+    def native_value(self):
+        return round(self.incident.get("distance_km", 0), 1)
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "description": self.incident.get("description"),
+            "type": self.incident.get("type"),
+            "severity": self.incident.get("severity"),
+            "road": self.incident.get("road"),
+            "distance_km": round(self.incident.get("distance_km", 0), 2),
+            "latitude": self.incident.get("latitude"),
+            "longitude": self.incident.get("longitude"),
+        }
+
+
+class DGTIncidentManager:
+
+    def __init__(self, hass, entry, module, async_add):
+        self.hass = hass
+        self.entry = entry
+        self.module = module
+        self.async_add = async_add
+        self.entities = {}
+
+    async def async_init(self):
+        self.module.async_add_listener(self._schedule_update)
+        await self._update()
+
+    @callback
+    def _schedule_update(self):
+        self.hass.async_create_task(self._update())
+
+    async def _update(self):
+        incidents = self.module.nearby_incidents or []
+
+        current_ids = set(i["id"] for i in incidents)
+        existing_ids = set(self.entities.keys())
+
+        # Crear / actualizar
+        for inc in incidents:
+            iid = inc["id"]
+
+            if iid in self.entities:
+                self.entities[iid].incident = inc
+                self.entities[iid].async_write_ha_state()
+            else:
+                ent = DGTIncidentSensor(self.module, self.entry, inc)
+                self.entities[iid] = ent
+                self.async_add([ent])
+
+        # Eliminar fuera de radio
+        for iid in existing_ids - current_ids:
+            ent = self.entities.pop(iid)
+            await ent.async_remove()
