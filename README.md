@@ -6,6 +6,14 @@
 > No se recomienda su uso en entornos críticos o de producción hasta el lanzamiento de la primera versión estable.
 
 ---
+# BETA 2
+* **Nueva funcionalidad de geolocalizacion por Persona**
+* **Nuevo device agrupando sensores de incidencias**
+* **reestructuracion de config_flow**
+* **Revision y optimizacion de codigo**
+* **Beta 2 con los dos modulos funcionales**
+
+---
 
 ## 💡 Sobre el Proyecto
 
