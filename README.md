@@ -1,4 +1,4 @@
-# 🚦 DGT Traffic (Pro) para Home Assistant
+# 🚦 DGT Traffic para Home Assistant
 
 > [!IMPORTANT]
 > **ESTADO DEL PROYECTO: VERSIÓN ESTABLE 1.0.0**  
