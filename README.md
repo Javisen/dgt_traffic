@@ -8,7 +8,10 @@
 ---
 # v1.2.0 – Primera versión estable
 
+* **Tres modos de Geolocalización**
 * **Geolocalización dinámica mediante Persona**
+* **Geolocalización mediante coordenadas**
+* **Geolocalización mediante sensor de HA**
 * **Nuevo device agrupando sensores de incidencias**
 * **Config Flow modular completo**
 * **Arquitectura refactorizada**
