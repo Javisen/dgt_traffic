@@ -6,7 +6,7 @@
 > Los módulos principales son funcionales y el proyecto entra ahora en fase de mantenimiento y mejora continua.
 
 ---
-# v1.0.0 – Primera versión estable
+# v1.2.0 – Primera versión estable
 
 * **Geolocalización dinámica mediante Persona**
 * **Nuevo device agrupando sensores de incidencias**
