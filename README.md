@@ -1,17 +1,19 @@
 # 🚦 DGT Traffic (Pro) para Home Assistant
 
-> [!WARNING]
-> **ESTADO DEL PROYECTO: VERSIÓN BETA**  
-> Este repositorio se encuentra actualmente en fase BETA. La integración es funcional, pero aún puede contener errores, comportamientos inesperados o cambios estructurales menores.  
-> No se recomienda su uso en entornos críticos o de producción hasta el lanzamiento de la primera versión estable.
+> [!IMPORTANT]
+> **ESTADO DEL PROYECTO: VERSIÓN ESTABLE 1.0.0**  
+> La integración ha alcanzado su primera versión estable.  
+> Los módulos principales son funcionales y el proyecto entra ahora en fase de mantenimiento y mejora continua.
 
 ---
-# BETA 2
-* **Nueva funcionalidad de geolocalizacion por Persona**
+# v1.0.0 – Primera versión estable
+
+* **Geolocalización dinámica mediante Persona**
 * **Nuevo device agrupando sensores de incidencias**
-* **reestructuracion de config_flow**
-* **Revision y optimizacion de codigo**
-* **Beta 2 con los dos modulos funcionales**
+* **Config Flow modular completo**
+* **Arquitectura refactorizada**
+* **Dos módulos operativos (Incidencias + Electrolineras)**
+* **Preparada para HACS**
 
 ---
 
@@ -33,55 +35,59 @@ Este proyecto nace para cubrir un vacío en la comunidad española de Home Assis
 
 La integración está dividida en módulos independientes que pueden configurarse múltiples veces:
 
-### 🚧 Incidencias de Tráfico (BETA temprana)
+### 🚧 Incidencias de Tráfico
 
 - Accidentes
 - Retenciones
 - Obras
 - Eventos especiales
 
-⚠️ Este módulo aún está en desarrollo activo y puede presentar resultados incompletos o inconsistentes.
+Incluye:
+
+- Geolocalización por HA / coordenadas / persona
+- Clasificación por severidad
+- Sensores agregados
+- Entidades individuales
+- Visualización directa en mapa
 
 ---
 
-### ⚡ Electrolineras (BETA funcional)
+### ⚡ Electrolineras
 
 - Filtrado por radio configurable
-- Coordenadas automáticas o personalizadas
+- Coordenadas automáticas, manuales o por persona
 - Sensores agregados (totales, cercanas, potencia, etc.)
 - Entidades dinámicas por estación
 - Clasificación por rangos de potencia
 - Visualización directa en mapa
 
-Este módulo se considera funcional para uso en pruebas.
-
 ---
 
 ## ✨ Características principales
 
-- 📍 Geolocalización automática o manual (lat/lon)
+- 📍 Geolocalización automática, manual o mediante Persona
 - 📏 Cálculo real de distancia mediante `geopy`
 - 🧭 Filtrado por radio configurable
-- 🔌 Parsing completo DATEX2 de electrolineras
+- 🔌 Parsing completo DATEX2
 - 🗺️ Soporte para visualización directa en mapa
-- 📊 Sensores agregados + entidades individuales por estación
+- 📊 Sensores agregados + entidades individuales
 - 🧠 Coordinadores y arquitectura limpia orientada a escalabilidad
 
 ---
 
 ## 🛠️ Instalación
 
-Actualmente no existe versión oficial en HACS.
+Disponible mediante HACS como repositorio personalizado.
 
-**instalacion mediante HACS repositorio personalizado:**
+**Instalación mediante HACS:**
 
-1. agregar repositorio personalizado url https://github.com/Javisen/dgt_traffic
-2. reiniciar Home Assistant
-3. agregar integracion DGT Traffic
+1. Añadir repositorio personalizado: https://github.com/Javisen/dgt_traffic
+2. Reiniciar Home Assistant
+3. Añadir integración DGT Traffic
 
 **Instalación manual:**
 
-1. Copiar la carpeta `dgt_traffic` `dentro de: config/custom_components/``
+1. Copiar la carpeta `dgt_traffic` dentro de: `config/custom_components/`
 
 2. Reiniciar Home Assistant
 
@@ -111,9 +117,7 @@ cards:
           domain: sensor
           attributes:
             power_range: "*"
-
 ```
-
 ## 🗺️ Ejemplo de tarjeta de mapa (Incidencias)
 
 ```yaml
@@ -131,22 +135,20 @@ cards:
         - domain: sensor
           attributes:
             severity: "*"
-
 ```
-
 ---
 
 ## 🧪 Estado actual
 
-- **Electrolineras**: funcional (BETA)  
-- **Incidencias**: en desarrollo activo  
-- **Frontend**: se proporciona como ejemplo  
+- **Electrolineras**: estable  
+- **Incidencias**: estable  
+- **Frontend**: ejemplos incluidos  
 
 ---
 
 ## 🐞 Reporte de errores
 
-A partir de esta versión BETA ya se aceptan Issues.
+Se aceptan Issues.
 
 Por favor incluye:
 
@@ -173,4 +175,3 @@ Se agradece respetar la autoría y esperar a versiones oficiales antes de realiz
 ---
 
 Desarrollado con ❤️ en España para la comunidad de Home Assistant.
-
