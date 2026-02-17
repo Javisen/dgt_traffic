@@ -3,17 +3,78 @@
     "step": {
       "user": {
         "title": "Configuración de DGT Tráfico",
-        "description": "Configura la integración introduciendo la información necesaria.",
+        "description": "Selecciona qué módulo deseas configurar.",
         "data": {
           "selected_module": "Módulo a configurar"
         }
+      },
+
+      "incidents": {
+        "title": "DGT Incidencias",
+        "description": "Configura la ubicación y parámetros del módulo de incidencias.",
+        "data": {
+          "location_mode": "Modo de ubicación",
+          "person_entity": "Persona a seguir",
+          "municipality": "Municipio",
+          "province": "Provincia",
+          "custom_latitude": "Latitud",
+          "custom_longitude": "Longitud",
+          "radius_km": "Radio de búsqueda (km)",
+          "update_interval": "Intervalo de actualización (minutos)",
+          "max_age_days": "Antigüedad máxima de incidencias (días)"
+        }
+      },
+
+      "charging": {
+        "title": "DGT Electrolineras",
+        "description": "Configura la ubicación y parámetros del módulo de electrolineras.",
+        "data": {
+          "location_mode": "Modo de ubicación",
+          "person_entity": "Persona a seguir",
+          "municipality": "Municipio",
+          "province": "Provincia",
+          "custom_latitude": "Latitud",
+          "custom_longitude": "Longitud",
+          "charging_radius_km": "Radio de búsqueda (km)",
+          "show_only_available": "Mostrar solo puntos disponibles"
+        }
       }
     },
+
     "selector": {
       "selected_module": {
         "options": {
           "incidents": "Incidencias de tráfico",
           "charging": "Electrolineras"
+        }
+      }
+    },
+
+    "error": {
+      "person_not_found": "No se ha encontrado la persona seleccionada.",
+      "person_no_gps": "La persona seleccionada no tiene coordenadas GPS.",
+      "invalid_coordinates": "Las coordenadas introducidas no son válidas."
+    }
+  },
+
+  "options": {
+    "step": {
+      "incidents": {
+        "title": "Opciones de Incidencias",
+        "description": "Ajusta los parámetros del módulo de incidencias.",
+        "data": {
+          "radius_km": "Radio de búsqueda (km)",
+          "update_interval": "Intervalo de actualización (minutos)",
+          "max_age_days": "Antigüedad máxima de incidencias (días)"
+        }
+      },
+
+      "charging": {
+        "title": "Opciones de Electrolineras",
+        "description": "Ajusta los parámetros del módulo de electrolineras.",
+        "data": {
+          "charging_radius_km": "Radio de búsqueda (km)",
+          "show_only_available": "Mostrar solo puntos disponibles"
         }
       }
     }

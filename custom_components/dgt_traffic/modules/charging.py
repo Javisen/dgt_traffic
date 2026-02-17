@@ -115,11 +115,25 @@ class DGTChargingModule(DGTModule):
 
     async def _handle_person_change(self, event):
         """Manejar cambios en la entidad persona."""
-        if self.config.get(CONF_LOCATION_MODE) == LOCATION_MODE_PERSON:
-            _LOGGER.debug("Persona actualizada, refrescando coordenadas")
-            self._update_coordinates_from_config()
-            # Forzar actualización del coordinador
-            await self.coordinator.async_request_refresh()
+        if self.config.get(CONF_LOCATION_MODE) != LOCATION_MODE_PERSON:
+            return
+
+        person = self.config.get(CONF_PERSON_ENTITY)
+        state = self.hass.states.get(person)
+
+        # Si la persona pierde GPS / queda unavailable
+        if not state or state.attributes.get("latitude") is None:
+            _LOGGER.warning(
+                "Persona sin coordenadas, manteniendo última ubicación válida"
+            )
+            return
+
+        _LOGGER.debug("Persona actualizada, refrescando coordenadas")
+
+        self._update_coordinates_from_config()
+
+        # Forzar actualización del coordinador
+        await self.coordinator.async_request_refresh()
 
     async def async_setup(self) -> bool:
         """Configurar módulo."""
@@ -146,8 +160,10 @@ class DGTChargingModule(DGTModule):
             if self.config.get(CONF_LOCATION_MODE) == LOCATION_MODE_PERSON:
                 person = self.config.get(CONF_PERSON_ENTITY)
                 if person:
-                    self._location_listener = async_track_state_change_event(
-                        self.hass, [person], self._handle_person_change
+                    self._person_unsub = async_track_state_change_event(
+                        self.hass,
+                        [person],
+                        self._handle_person_change,
                     )
                     _LOGGER.info("Escuchando cambios en persona: %s", person)
 
@@ -159,9 +175,14 @@ class DGTChargingModule(DGTModule):
             _LOGGER.error("Error configurando módulo electrolineras: %s", err)
             return False
 
+    async def async_unload(self):
+        """Limpiar listeners al descargar el módulo."""
+        if hasattr(self, "_location_listener"):
+            self._location_listener()
+
     async def _async_update_data(self) -> Dict[str, Any]:
         """Actualizar datos de electrolineras."""
-        # Actualizar coordenadas por si cambió la persona
+        # Actualizar coordenadas persona
         self._update_coordinates_from_config()
 
         coordinates_valid = (

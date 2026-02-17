@@ -119,8 +119,7 @@ class DGTBaseSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Determina si el sensor va al padre o al hijo según el tipo."""
 
-        # Si es un sensor individual de incidencia
-        if hasattr(self, "incident"):  # o isinstance(self, DGTIncidentSensor)
+        if hasattr(self, "incident"):
             return DeviceInfo(
                 identifiers={(DOMAIN, f"{self.entry.entry_id}_incidents_items")},
                 name="Incidencias",
@@ -129,7 +128,6 @@ class DGTBaseSensor(SensorEntity):
                 via_device=(DOMAIN, f"{self.entry.entry_id}_incidents"),
             )
         else:
-            # Para sensores de resumen (futuros)
             return DeviceInfo(
                 identifiers={(DOMAIN, f"{self.entry.entry_id}_incidents")},
                 name="DGT Incidencias",
