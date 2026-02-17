@@ -1,12 +1,12 @@
 # 🚦 DGT Traffic para Home Assistant
 
 > [!IMPORTANT]
-> **ESTADO DEL PROYECTO: VERSIÓN ESTABLE 1.0.0**  
+> **ESTADO DEL PROYECTO: VERSIÓN ESTABLE 1.2.1**  
 > La integración ha alcanzado su primera versión estable.  
 > Los módulos principales son funcionales y el proyecto entra ahora en fase de mantenimiento y mejora continua.
 
 ---
-# v1.2.0 – Primera versión estable
+# v1.2.1 – Primera versión estable
 
 * **Tres modos de Geolocalización**
 * **Geolocalización dinámica mediante Persona**
